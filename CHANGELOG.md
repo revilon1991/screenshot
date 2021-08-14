@@ -1,4 +1,7 @@
 ## [Unreleased]
+### Added
+- Database SQLite for storing user config.
+- Status bar menu with help, preferences and quit actions.
 
 ## [0.0.1] - 2021-07-31
 ### Added

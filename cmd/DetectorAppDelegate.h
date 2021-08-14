@@ -3,8 +3,7 @@
 #import <pwd.h>
 
 @interface DetectorAppDelegate : NSObject <NSApplicationDelegate, NSMetadataQueryDelegate> {
-@private
-    NSMetadataQuery *query;
+    @private NSMetadataQuery *query;
 }
 
 @property (nonatomic, copy) NSArray *queryResults;
