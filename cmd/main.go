@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"time"
 	"unsafe"
 )
@@ -247,7 +248,9 @@ func listener() {
 
 			screenshotPull[screenshot.path] = screenshot
 
-			err := sendFile(screenshot.path)
+			userConfig := getUserConfig()
+
+			fileLink, err := sendFile(userConfig, screenshot.path)
 
 			if err != nil {
 				fmt.Printf("Error while copying file %s", err.Error())
@@ -256,14 +259,14 @@ func listener() {
 				continue
 			}
 
-			sendNotify("Screenshot delivered", screenshot.path)
+			clipboard.Write(clipboard.FmtText, []byte(fileLink))
+
+			sendNotify("Screenshot delivered", fileLink)
 		}
 	}
 }
 
-func sendFile(screenshotPath string) error {
-	userConfig := getUserConfig()
-
+func sendFile(userConfig *UserConfig, screenshotPath string) (string, error) {
 	clientConfig, _ := auth.PasswordKey(
 		userConfig.user,
 		userConfig.pass,
@@ -281,7 +284,7 @@ func sendFile(screenshotPath string) error {
 		fmt.Printf("Couldn't establish a connection to the remote server %s", err.Error())
 		sendNotify("Couldn't establish a connection to the remote server", err.Error())
 
-		return err
+		return "", err
 	}
 
 	file, _ := os.Open(screenshotPath)
@@ -296,19 +299,22 @@ func sendFile(screenshotPath string) error {
 		}
 	}()
 
+	filename = strings.ReplaceAll(filename, " ", "_")
+	filePath := fmt.Sprintf("%s%s", userConfig.path, filename)
+
 	err = client.CopyFile(
 		file,
-		fmt.Sprintf("%s%s", userConfig.path, filename),
+		filePath,
 		"0655",
 	)
 
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	clipboard.Write(clipboard.FmtText, []byte(fmt.Sprintf("%s%s", userConfig.link, filename)))
+	fileLink := fmt.Sprintf("%s%s", userConfig.link, filename)
 
-	return nil
+	return fileLink, nil
 }
 
 func sendNotify(title string, text string) {

@@ -6,6 +6,8 @@
 - Push notification.
 ### Changed
 - Refactoring.
+### Fixed
+- Replace spaces with underscores for file name.
 
 ## [0.0.1] - 2021-07-31
 ### Added
