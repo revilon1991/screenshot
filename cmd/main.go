@@ -35,13 +35,39 @@ const BundleId = "com.revilon1991.screenshot"
 
 var screenshotChan = make(chan Screenshot)
 var screenshotPull = make(map[string]Screenshot)
+var Version = "0"
 
 var application cocoa.NSApplication
 
 func main() {
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
-
 	runtime.LockOSThread()
+
+	log.SetFlags(log.LstdFlags | log.Llongfile)
+
+	if Version != "0" {
+		ep, err := os.Executable()
+		if err != nil {
+			log.Fatalln("os.Executable:", err)
+		}
+		err = os.Chdir(filepath.Join(filepath.Dir(ep), "..", "Resources"))
+		if err != nil {
+			log.Fatalln("os.Chdir:", err)
+		}
+
+		f, err := os.OpenFile("main.log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+		if err != nil {
+			log.Fatalf("error opening file: %v", err)
+		}
+		defer func() {
+			err = f.Close()
+
+			if err != nil {
+				log.Panic(err)
+			}
+		}()
+
+		log.SetOutput(f)
+	}
 
 	makeDbIfNotExist()
 
@@ -114,11 +140,11 @@ func openPreferences() {
 func openHelp() {
 	helpView := cocoa.NSTextView_Init(core.Rect(50, 250, 300, 20.0))
 	helpView.SetEditable(false)
-	helpView.SetString(`
-Screenshot.
+	helpView.SetString(fmt.Sprintf(`
+Screenshot (ver. %s)
 
 This application provides delivering screenshots to your sftp server.
-Just fill fields in the preferences menu and take screenshot.
+Just fill fields in the preferences menu and take a screenshot.
 Generally, you can do it by combination shift+cmd+4.
 After you can put through the link from your buffer by cmd+v.
 
@@ -126,7 +152,7 @@ This is an open-source application.
 You can become a contributor developing with this repo https://github.com/revilon1991/screenshot
 
 RevilOn <revil-on@mail.ru>
-`)
+`, Version))
 
 	window := cocoa.NSWindow_Init(
 		core.Rect(0, 0, 400, 300),
@@ -193,7 +219,7 @@ func savePreferences() {
 func ui() {
 	obj := cocoa.NSStatusBar_System().StatusItemWithLength(cocoa.NSVariableStatusItemLength)
 	obj.Retain()
-	obj.Button().SetTitle("📸")
+	obj.Button().SetTitle("🔲")
 	menu := cocoa.NSMenu_New()
 	itemQuit := cocoa.NSMenuItem_Init("Quit", objc.Sel("terminate:"), "q")
 	itemPreferences := cocoa.NSMenuItem_Init("Preferences", objc.Sel("openPreferencesSel"), "s")
@@ -295,7 +321,7 @@ func sendFile(userConfig *UserConfig, screenshotPath string) (string, error) {
 		err = file.Close()
 
 		if err != nil {
-			panic(err)
+			log.Panic(err)
 		}
 	}()
 

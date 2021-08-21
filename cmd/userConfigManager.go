@@ -25,7 +25,7 @@ func init() {
 	conn, err := sql.Open("sqlite3", DbName)
 
 	if err != nil {
-		panic(err)
+		log.Panic(err)
 	}
 
 	db = conn
@@ -40,7 +40,7 @@ func makeDbIfNotExist() {
 	err = file.Close()
 
 	if err != nil {
-		panic(err)
+		log.Panic(err)
 	}
 
 	userConfigSql := `
@@ -66,7 +66,7 @@ create unique index if not exists userConfigUniq on userConfig (host, port, user
 	_, err = statement.Exec()
 
 	if err != nil {
-		panic(err)
+		log.Panic(err)
 	}
 }
 
@@ -85,20 +85,20 @@ limit 1
 `)
 
 	if err != nil {
-		panic(err)
+		log.Panic(err)
 	}
 
 	rows, err := stmt.Query()
 
 	if err != nil {
-		panic(err)
+		log.Panic(err)
 	}
 
 	defer func() {
 		err = rows.Close()
 
 		if err != nil {
-			panic(err)
+			log.Panic(err)
 		}
 	}()
 
@@ -131,6 +131,6 @@ func setUserConfig(host string, port int, user string, pass string, path string,
 	)
 
 	if err != nil {
-		panic(err)
+		log.Panic(err)
 	}
 }
