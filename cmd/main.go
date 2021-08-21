@@ -9,12 +9,19 @@ package main
 import "C"
 import (
 	"fmt"
+	"github.com/bramvdbogaerde/go-scp"
+	"github.com/bramvdbogaerde/go-scp/auth"
 	"github.com/progrium/macdriver/cocoa"
 	"github.com/progrium/macdriver/core"
 	"github.com/progrium/macdriver/objc"
+	"golang.design/x/clipboard"
+	"golang.org/x/crypto/ssh"
 	"log"
+	"os"
+	"path/filepath"
 	"runtime"
 	"strconv"
+	"time"
 	"unsafe"
 )
 
@@ -22,6 +29,8 @@ type Screenshot struct {
 	path      string
 	createdAt string
 }
+
+const BundleId = "com.revilon1991.screenshot"
 
 var screenshotChan = make(chan Screenshot)
 var screenshotPull = make(map[string]Screenshot)
@@ -42,7 +51,6 @@ func main() {
 
 	application.Send("setDelegate:", applicationDelegate)
 	application.SetActivationPolicy(cocoa.NSApplicationActivationPolicyAccessory)
-	application.ActivateIgnoringOtherApps(true)
 
 	application.Run()
 }
@@ -186,19 +194,19 @@ func ui() {
 	obj.Retain()
 	obj.Button().SetTitle("📸")
 	menu := cocoa.NSMenu_New()
-	itemQuit := cocoa.NSMenuItem_New()
-	itemQuit.SetTitle("Quit")
-	itemQuit.SetAction(objc.Sel("terminate:"))
-	itemPreferences := cocoa.NSMenuItem_New()
-	itemPreferences.SetTitle("Preferences")
-	itemPreferences.SetAction(objc.Sel("openPreferencesSel"))
-	itemHelp := cocoa.NSMenuItem_New()
-	itemHelp.SetTitle("Help")
-	itemHelp.SetAction(objc.Sel("openHelpSel"))
+	itemQuit := cocoa.NSMenuItem_Init("Quit", objc.Sel("terminate:"), "q")
+	itemPreferences := cocoa.NSMenuItem_Init("Preferences", objc.Sel("openPreferencesSel"), "s")
+	itemHelp := cocoa.NSMenuItem_Init("Help", objc.Sel("openHelpSel"), "h")
 	menu.AddItem(itemHelp)
 	menu.AddItem(itemPreferences)
 	menu.AddItem(itemQuit)
 	obj.SetMenu(menu)
+
+	NSBundle := cocoa.NSBundle_Main().Class()
+	NSBundle.AddMethod("__bundleIdentifier", func(_ objc.Object) objc.Object {
+		return core.String(BundleId)
+	})
+	NSBundle.Swizzle("bundleIdentifier", "__bundleIdentifier")
 }
 
 //export queryWire
@@ -222,6 +230,8 @@ func queryWire(pathPointer unsafe.Pointer, createdAtPointer unsafe.Pointer) {
 }
 
 func listener() {
+	now := time.Now().Unix()
+
 	for {
 		select {
 		case screenshot := <-screenshotChan:
@@ -229,9 +239,83 @@ func listener() {
 				continue
 			}
 
+			createdAt, _ := time.Parse("2006-01-02 15:04:05 -0700", screenshot.createdAt)
+
+			if now > createdAt.Unix() {
+				continue
+			}
+
 			screenshotPull[screenshot.path] = screenshot
 
-			fmt.Println(screenshot)
+			err := sendFile(screenshot.path)
+
+			if err != nil {
+				fmt.Printf("Error while copying file %s", err.Error())
+				sendNotify("Error while copying file", err.Error())
+
+				continue
+			}
+
+			sendNotify("Screenshot delivered", screenshot.path)
 		}
 	}
+}
+
+func sendFile(screenshotPath string) error {
+	userConfig := getUserConfig()
+
+	clientConfig, _ := auth.PasswordKey(
+		userConfig.user,
+		userConfig.pass,
+		ssh.InsecureIgnoreHostKey(),
+	)
+
+	client := scp.NewClient(
+		fmt.Sprintf("%s:%s", userConfig.host, strconv.Itoa(userConfig.port)),
+		&clientConfig,
+	)
+
+	err := client.Connect()
+
+	if err != nil {
+		fmt.Printf("Couldn't establish a connection to the remote server %s", err.Error())
+		sendNotify("Couldn't establish a connection to the remote server", err.Error())
+
+		return err
+	}
+
+	file, _ := os.Open(screenshotPath)
+	filename := filepath.Base(file.Name())
+
+	defer client.Close()
+	defer func() {
+		err = file.Close()
+
+		if err != nil {
+			panic(err)
+		}
+	}()
+
+	err = client.CopyFile(
+		file,
+		fmt.Sprintf("%s%s", userConfig.path, filename),
+		"0655",
+	)
+
+	if err != nil {
+		return err
+	}
+
+	clipboard.Write(clipboard.FmtText, []byte(fmt.Sprintf("%s%s", userConfig.link, filename)))
+
+	return nil
+}
+
+func sendNotify(title string, text string) {
+	notification := objc.Get("NSUserNotification").Alloc().Init()
+	notification.Set("title:", core.String(title))
+	notification.Set("informativeText:", core.String(text))
+	center := objc.Get("NSUserNotificationCenter").Send("defaultUserNotificationCenter")
+	center.Send("deliverNotification:", notification)
+	notification.Release()
 }
