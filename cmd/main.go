@@ -31,8 +31,6 @@ type Screenshot struct {
 	createdAt string
 }
 
-const BundleId = "com.revilon1991.screenshot"
-
 var screenshotChan = make(chan Screenshot)
 var screenshotPull = make(map[string]Screenshot)
 var Version = "0"
@@ -228,12 +226,6 @@ func ui() {
 	menu.AddItem(itemPreferences)
 	menu.AddItem(itemQuit)
 	obj.SetMenu(menu)
-
-	NSBundle := cocoa.NSBundle_Main().Class()
-	NSBundle.AddMethod("__bundleIdentifier", func(_ objc.Object) objc.Object {
-		return core.String(BundleId)
-	})
-	NSBundle.Swizzle("bundleIdentifier", "__bundleIdentifier")
 }
 
 //export queryWire
@@ -275,6 +267,12 @@ func listener() {
 			screenshotPull[screenshot.path] = screenshot
 
 			userConfig := getUserConfig()
+
+			if userConfig == nil {
+				sendNotify("Connection config is empty", "Open Preferences and configure sftp connect")
+
+				continue
+			}
 
 			fileLink, err := sendFile(userConfig, screenshot.path)
 

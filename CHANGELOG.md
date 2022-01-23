@@ -1,5 +1,11 @@
 ## [Unreleased]
 
+## [0.1.1] - 2022-01-23
+### Added
+- There is a push notification if you didn't configure the SFTP connection.
+### Fixed
+- Application crashes when any text field is focused. This was noticed on the macOS `12.1` version.
+
 ## [0.1.0] - 2021-08-22
 ### Added
 - Database SQLite for storing user config.
